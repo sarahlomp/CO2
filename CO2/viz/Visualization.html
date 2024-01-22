@@ -1,0 +1,1215 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>D3.js World Map</title>
+    <!-- Load d3.js -->
+    <script src="https://d3js.org/d3.v4.js"></script>
+    <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+    <script src="https://d3js.org/d3-geo-projection.v2.min.js"></script>
+    <style>
+        /*styling*/
+        body {
+            background-color: #333;
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        #my_dataviz {
+            width: 80vw;
+            height: 80vh;
+            display: block;
+        }
+
+        #year-slider-container {
+            font-size: 1.2em; 
+            font-weight: bold;
+            width: 400px;
+            display: flex;
+            background-color: #333;
+            color: rgba(255, 255, 255, 0.8);
+            border-radius: 5px;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px; 
+            margin-top: 20px; 
+        }
+
+        #selected-year {
+            font-size: 1.2em; 
+            font-weight: bold; 
+            margin-right: 10px;
+        }
+
+        #year-slider {
+            flex-grow: 1; 
+            margin: 0 10px;
+        }
+
+        #tooltip {
+            position: absolute;
+            top: 10px;
+            margin-bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+            font-weight: bold;
+        }
+
+        .tooltip2 {
+            position: absolute;
+            pointer-events: none;
+            background: rgba(205, 205, 205, 0.9);
+            color: #000000;
+            border-radius: 5px; 
+            padding: 2px;
+            border: 2px solid #333; 
+        }
+
+            .tooltip2 strong.key {
+                font-weight: bold;
+                color: black;
+            }
+
+        #modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        
+        .modal-slice {
+            margin-bottom: 10px; 
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            box-sizing: border-box;
+            display: inline-block; 
+            margin-right: 20px; 
+        }
+
+        #modal-content {
+            background: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
+            display: flex;
+            flex-direction: column; 
+            position: relative;
+        }
+
+        #modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        #modal-tabs {
+            display: flex;
+        }
+
+        .modal-tab {
+            cursor: pointer;
+            padding: 10px 15px;
+            margin-right: 10px;
+            background-color: #ddd;
+            border-radius: 5px 5px 0 0;
+        }
+
+            .modal-tab:hover {
+                background-color: #ccc;
+            }
+
+        .tab-content {
+            display: none;
+        }
+
+
+        #tab1-content {
+            display: block;
+        }
+
+        #tab2-content {
+            display: flex;
+            flex-direction: row; 
+            align-items: center; 
+        }
+
+        #tab3-content {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+        }
+
+        .compare-btn {
+            background-color: #D142FF;
+            color: black;
+            padding: 10px 20px;
+            margin: 10px auto;
+            display: block;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+        }
+
+            .compare-btn:hover {
+                background-color: #7E289A;
+                color: white;
+            }
+
+        #close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            cursor: pointer;
+            color: #fff;
+            background-color: red;
+            padding: 5px;
+            border-radius: 3px;
+        }
+
+        #pie-chart-container {
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            box-sizing: border-box;
+            display: inline-block; 
+            margin-right: 20px; 
+        }
+    </style>
+</head>
+<body>
+
+
+    <!-- Create an element where the map will take place -->
+    <svg id="my_dataviz"></svg>
+    <div id="tooltip"></div>
+    <!-- Modal window for displaying country data on click-->
+    <div id="modal">
+        <div id="modal-content">
+            <div id="modal-header">
+            </div>
+            <div id="modal-tabs">
+                <!-- Tabs inside modal window -->
+                <div class="modal-tab" data-tab="tab1" onclick="switchTab('tab1')">Info</div>
+                <div class="modal-tab" data-tab="tab2" onclick="switchTab('tab2')">Pie Chart</div>
+                <div class="modal-tab" data-tab="tab3" onclick="switchTab('tab3')">Bar Chart</div>
+            </div>
+            <div id="tab1-content" class="tab-content">
+                <!-- Content for Tab 1 -->
+                <button class="compare-btn" id="compare-btn" onclick="compareData()">Compare with</button>
+            </div>
+            <div id="tab2-content" class="tab-content">
+                <!-- Content for Tab 2 -->
+                <button class="compare-btn" id="compare-btn" onclick="compareData()">Compare with</button>
+                <div id="pie-chart-container"></div>
+            </div>
+            <div id="tab3-content" class="tab-content">
+                <!-- Content for Tab 3 -->
+                <button class="compare-btn" id="compare-btn" onclick="compareData()">Compare with</button>
+                <div id="dropdown-container">
+                    <label for="datapoint-select">Select Datapoint:</label>
+                    <select id="datapoint-select">
+                        <option>Choose a datapoint</option>
+                    </select>
+                </div>
+                <div id="chart"></div>
+            </div>
+
+        </div>
+        <!-- Close button for modal window -->
+        <div id="close-btn">X</div>
+    </div>
+    <!-- Slider to choose year -->
+    <div id="year-slider-container">
+        <label for="year-slider">Select Year:</label>
+        <br>
+        <input type="range" id="year-slider" min="1900" max="2020" step="1" value="2020">
+        <output id="selected-year">2020</output>
+    </div>
+
+
+    <script>
+        var comparing = false;
+        var charts = [];
+
+        // The svg
+        var svg = d3.select("svg"),
+            width = window.innerWidth * 0.8,
+            height = window.innerHeight * 0.8;
+
+        // Map and projection
+        var projection = d3.geoNaturalEarth1()
+            .scale((width + 1) / 2 / Math.PI)
+            .translate([width / 2, height / 2]);
+
+        // Load external data and boot
+        d3.json("https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson", function (worldData) {
+
+            // Extract Data from TSV and combine with GeoJSON-Data
+            d3.tsv("../data/iso3.tsv", function (d) {
+                return {
+                    alpha3: d.alpha3,
+                    country: d.country,
+                    subregion: d.subregion,
+                    region: d.region
+                };
+            }, function (error, tsvData) {
+                if (error) throw error;
+
+                // List Object to store and access tsv data
+                var tsvDataMap = {};
+                tsvData.forEach(function (d) {
+                    tsvDataMap[d.country] = d;
+                });
+
+                // Add tsv data to GeoJSON data
+                worldData.features.forEach(function (feature) {
+                    var countryName = feature.properties.name;
+                    var tsvCountryData = tsvDataMap[countryName];
+                    if (tsvCountryData) {
+                        feature.properties.regionData = tsvCountryData;
+                    }
+                });
+
+
+
+
+
+                // Load the second external data (CO2 data)
+                d3.tsv("../data/owid-co2-data.tsv", function (d) {
+                    // Check if iso_code is not blank before processing the data
+                    if (d.iso_code.trim() !== "") {
+                        return {
+                            country: d.country,
+                            year: +d.year, 
+                            iso_code: d.iso_code,
+                            data: {
+                                population: +d.population, 
+                                gdp: +d.gdp, 
+                                cement_co2: +d.cement_co2,
+                                cement_co2_per_capita: +d.cement_co2_per_capita,
+                                co2: +d.co2,
+                                co2_growth_abs: +d.co2_growth_abs,
+                                co2_growth_prct: +d.co2_growth_prct,
+                                co2_per_capita: +d.co2_per_capita,
+                                co2_per_gdp: +d.co2_per_gdp,
+                                co2_per_unit_energy: +d.co2_per_unit_energy,
+                                coal_co2: +d.coal_co2,
+                                coal_co2_per_capita: +d.coal_co2_per_capita,
+                                consumption_co2: +d.consumption_co2,
+                                consumption_co2_per_capita: +d.consumption_co2_per_capita,
+                                consumption_co2_per_gdp: +d.consumption_co2_per_gdp,
+                                cumulative_cement_co2: +d.cumulative_cement_co2,
+                                cumulative_co2: +d.cumulative_co2,
+                                cumulative_coal_co2: +d.cumulative_coal_co2,
+                                cumulative_flaring_co2: +d.cumulative_flaring_co2,
+                                cumulative_gas_co2: +d.cumulative_gas_co2,
+                                cumulative_oil_co2: +d.cumulative_oil_co2,
+                                cumulative_other_co2: +d.cumulative_other_co2,
+                                energy_per_capita: +d.energy_per_capita,
+                                energy_per_gdp: +d.energy_per_gdp,
+                                flaring_co2: +d.flaring_co2,
+                                flaring_co2_per_capita: +d.flaring_co2_per_capita,
+                                gas_co2: +d.gas_co2,
+                                gas_co2_per_capita: +d.gas_co2_per_capita,
+                                ghg_excluding_lucf_per_capita: +d.ghg_excluding_lucf_per_capita,
+                                ghg_per_capita: +d.ghg_per_capita,
+                                methane: +d.methane,
+                                methane_per_capita: +d.methane_per_capita,
+                                nitrous_oxide: +d.nitrous_oxide,
+                                nitrous_oxide_per_capita: +d.nitrous_oxide_per_capita,
+                                oil_co2: +d.oil_co2,
+                                oil_co2_per_capita: +d.oil_co2_per_capita,
+                                other_co2_per_capita: +d.other_co2_per_capita,
+                                other_industry_co2: +d.other_industry_co2,
+                                primary_energy_consumption: +d.primary_energy_consumption,
+                                share_global_cement_co2: +d.share_global_cement_co2,
+                                share_global_co2: +d.share_global_co2,
+                                share_global_coal_co2: +d.share_global_coal_co2,
+                                share_global_cumulative_cement_co2: +d.share_global_cumulative_cement_co2,
+                                share_global_cumulative_co2: +d.share_global_cumulative_co2,
+                                share_global_cumulative_coal_co2: +d.share_global_cumulative_coal_co2,
+                                share_global_cumulative_flaring_co2: +d.share_global_cumulative_flaring_co2,
+                                share_global_cumulative_gas_co2: +d.share_global_cumulative_gas_co2,
+                                share_global_cumulative_oil_co2: +d.share_global_cumulative_oil_co2,
+                                share_global_cumulative_other_co2: +d.share_global_cumulative_other_co2,
+                                share_global_flaring_co2: +d.share_global_flaring_co2,
+                                share_global_gas_co2: +d.share_global_gas_co2,
+                                share_global_oil_co2: +d.share_global_oil_co2,
+                                share_global_other_co2: +d.share_global_other_co2,
+                                total_ghg: +d.total_ghg,
+                                total_ghg_excluding_lucf: +d.total_ghg_excluding_lucf,
+                                trade_co2: +d.trade_co2,
+                                trade_co2_share: +d.trade_co2_share
+                            }
+                        }
+                    };
+                }, function (error, extractedData) {
+                    if (error) throw error;
+
+                    // Create a structured data array
+                    var structuredData = [];
+
+                    extractedData.forEach(function (d) {
+                        var country = d.country;
+
+                        // Find the corresponding entry in structuredData array
+                        var existingEntry = structuredData.find(entry => entry[0] === country);
+
+                        // If the entry doesn't exist, create a new one
+                        if (!existingEntry) {
+                            existingEntry = [country];
+                            structuredData.push(existingEntry);
+                        }
+
+                        // Push the data for each year to the existing entry
+                        existingEntry.push({
+                            iso_code: d.iso_code,
+                            year: d.year,
+                            data: d.data
+                        });
+                    });
+
+
+                    // Merge extracted data with worldData based on matching iso_code
+                    worldData.features.forEach(function (feature) {
+                        var isoCode = feature.id; 
+                        var structuredDataItem = structuredData.find(entry => entry[1] && entry[1].iso_code === isoCode);
+
+                        if (structuredDataItem) {
+                            // Iterate over each element in structuredDataItem
+                            structuredDataItem.slice(1).forEach(function (yearData) {
+                                var isoCode = yearData.iso_code;
+
+                                // Find the corresponding feature in worldData
+                                var feature = worldData.features.find(f => f.id === isoCode);
+
+                                if (feature) {
+                                    // Merge the properties of worldData and structuredData for the matching iso_code
+                                    if (!feature.properties.co2Data) {
+                                        feature.properties.co2Data = [];
+                                    }
+
+                                    feature.properties.co2Data.push({
+                                        year: yearData.year,
+                                        data: yearData.data
+                                    });
+                                }
+                            });
+                        }
+                    });
+
+                    console.log(worldData);
+
+
+                    // Function to get the emission category based on total emissions
+                    function getCategory(totalEmissions) {
+                        if (totalEmissions < 3) return 0;
+                        else if (totalEmissions < 10) return 1;
+                        else if (totalEmissions < 30) return 2;
+                        else if (totalEmissions < 100) return 3;
+                        else if (totalEmissions < 300) return 4;
+                        else if (totalEmissions < 1000) return 5;
+                        else if (totalEmissions < 3000) return 6;
+                        else if (totalEmissions < 10000) return 7;
+                        else return 8;
+                    }
+
+                    // define slider
+                    var yearSlider = document.getElementById("year-slider");
+                    var selectedYearOutput = document.getElementById("selected-year");
+                    var selectedYear = yearSlider.value;
+                    yearSlider.addEventListener("input", function () {
+                        var selectedYear = parseInt(yearSlider.value);
+                        selectedYearOutput.innerText = selectedYear;
+
+
+                        // Update the fill color of each country based on the category for the selected year
+                        countries.attr("fill", function (d) {
+                            var properties = d.properties;
+                            // Check if co2Data property exists and is an array
+                            if (properties.co2Data) {
+                                var totalEmissions = getEmissionsForYear(d.properties.co2Data, selectedYear);
+                                // Get the CO2 category based on the total emissions
+                                var category = getCategory(totalEmissions);
+                                // Return the color based on the category
+                                return getColorForCategory(category);
+                            }
+                            // If no data is available for the selected year or co2Data is not an array, use a default color
+                            return "#ccc";
+                        });
+                    });
+
+
+
+
+
+                    // Define color scale
+                    // Use d3.interpolateYlGnBu to generate an interpolated color scale
+                    var colorInterpolator = d3.interpolateYlGnBu;
+
+                    // Quantize the interpolated color scale into 8 discrete colors
+                    var colorScale = d3.scaleQuantize()
+                        .domain([0, 1]) 
+                        .range(d3.range(9).map(d => colorInterpolator(d / 8))); 
+
+                    // Create a function to map a category to its corresponding color
+                    function getColorForCategory(category) {
+                        return colorScale(category / 8); 
+                    }
+
+                    // Draw the map
+                    var countries = svg.append("g")
+                        .selectAll("path")
+                        .data(worldData.features)
+                        .enter().append("path")
+                        .attr("fill", function (d) {
+
+                            // Get the total CO2 emissions for the selected year
+                            var selectedYear = parseInt(yearSlider.value);
+                            var totalEmissions = getEmissionsForYear(d.properties.co2Data, selectedYear);
+
+                            // Get the CO2 category based on the total emissions
+                            var category = getCategory(totalEmissions);
+
+                            // Return the color based on the category
+                            return getColorForCategory(category);
+
+                        })
+                        .attr("d", d3.geoPath()
+                            .projection(projection)
+                        )
+                        .style("stroke", "#333")
+                        .attr("data-properties", function (d) {
+                            // Set a custom attribute containing all properties
+                            return JSON.stringify(d.properties);
+                        });
+
+
+                    // Legend for the map
+                    // Append a new div to the body
+                    var legendContainer = d3.select("body").append("div")
+                        .attr("class", "legend-container")
+                        .style("position", "absolute")
+                        .style("left", "150px")
+                        .style("top", height / 2 - 300 / 2 + "px") // Adjusted vertical position and centered
+                    // Get the DOM element corresponding to the legend container
+                    var legendContainerElement = document.querySelector('.legend-container');
+
+
+                    // Create legend
+                    var legendWidth = 15;
+                    var legendHeight = 50;
+
+                    var legend = legendContainer.append("svg")
+                        .attr("class", "legend")
+                        .style("font-size", "12px")
+                        .attr("height", 8 * legendHeight)
+                        .attr("width", 5 * legendHeight);
+
+
+                    legend.selectAll("rect")
+                        .data(colorScale.range())
+                        .enter().append("rect")
+                        .attr("y", function (d, i) { return i * legendHeight; })
+                        .attr("width", legendWidth)
+                        .attr("height", legendHeight)
+                        .style("fill", function (d) { return d; });
+
+                    var legendLabels = ["0-3 Million Tons CO2", "3-10 Million Tons CO2", "10-30 Million Tons CO2", "30-100 Million Tons CO2", "100-300 Million Tons CO2", "300M-1 Billion Tons CO2", "1-3 Billion Tons CO2", "3-10 Billion Tons CO2", ">10 Billion Tons CO2"];
+                    legend.selectAll("text")
+                        .data(legendLabels)
+                        .enter().append("text")
+                        .attr("x", legendWidth + 10)
+                        .attr("y", function (d, i) { return i * legendHeight + legendHeight / 2; })
+                        .attr("dy", "0.35em")
+                        .style("text-anchor", "start")
+                        .style("fill", "rgba(255, 255, 255, 0.8)")
+                        .text(function (d) { return d; });
+
+
+
+
+
+                    // Tooltip element for displaying country name when hovering over map
+                    var tooltip = d3.select("#tooltip");
+
+                    // Modal window elements
+                    var modal = d3.select("#modal");
+                    var modalContent = d3.select("#modal-content");
+                    var closeBtn = d3.select("#close-btn");
+
+                    // Variable for countries selected by the user
+                    var selectedCountries = [];
+
+                    // Event listeners for hover
+                    countries
+                        .on("mouseover", function (event, d) {
+                            var properties = JSON.parse(d3.select(this).attr("data-properties"));
+                            if (properties) {
+                                // Store the original color
+                                originalColor = d3.select(this).attr("fill");
+                                // Show tooltip with country name
+                                tooltip.text(properties.name)
+                                    .style("display", "block");
+                            } else {
+                                tooltip.style("display", "none");
+                            }
+                            // Change the fill color on hover
+                            d3.select(this).attr("fill", "orange"); 
+                        })
+                        .on("mouseout", function (event, d) {
+                            tooltip.style("display", "none");
+                            var properties = JSON.parse(d3.select(this).attr("data-properties"));
+                            // Fill back with original color if country is not selected
+                            if (!selectedCountries.includes(this)) {
+                                d3.select(this).attr("fill", originalColor);
+                                originalColor = null;
+                            }
+                        })
+                    // Event listener for clicking on a country
+                    countries.on("click", function (event, d) {
+                        var properties = JSON.parse(d3.select(this).attr("data-properties"));
+                        if (properties) {
+                            // Mark the currently selected country
+                            d3.select(this).attr("fill", "orange");
+                            // Store the original color
+                            selectedCountries.push({ element: this, originalColor: originalColor });
+                            originalColor = null;
+
+                            // Remove all existing modal content slices from the window
+                            d3.select("#tab1-content").selectAll(".modal-slice").remove();
+                            d3.select("#tab2-content").selectAll("svg").remove();
+                            d3.select("#tab2-content").selectAll("div").remove();
+                            d3.select("#tab3-content").selectAll("svg").remove();
+                            d3.select("#datapoint-select").property("value", "Choose a datapoint");
+
+                            // Use current year determined by the slider
+                            var selectedYear = parseInt(yearSlider.value);
+
+                            // Create an array to store total emissions for all selected countries
+                            var totalEmissionsArray = [];
+
+
+
+                            /*
+                            TAB 1
+                            */
+
+
+                            // Display modal for each selected country in Tab 1
+                            selectedCountries.forEach(function (selectedCountry) {
+                                var country = selectedCountry.element;
+                                var countryProperties = JSON.parse(d3.select(country).attr("data-properties"));
+
+                                // Create a new modal slice for each selected country in Tab 1
+                                var modalSlice = d3.select("#tab1-content").append("div")
+                                    .attr("class", "modal-slice");
+
+                                modalSlice.html("<strong>Name:</strong> " + countryProperties.name);
+
+                                if (countryProperties.regionData) {
+                                    modalSlice.append("div").html("<strong>Alpha3:</strong> " + countryProperties.regionData.alpha3);
+                                    modalSlice.append("div").html("<strong>Region:</strong> " + countryProperties.regionData.region);
+                                    modalSlice.append("div").html("<strong>Subregion:</strong> " + countryProperties.regionData.subregion);
+                                } else {
+                                    modalSlice.append("div").html("<strong>No more data available");
+                                }
+
+                                if (countryProperties.co2Data) {
+                                    // Find the data for the selected year
+                                    var dataFromYear = countryProperties.co2Data.find(entry => entry.year === selectedYear);
+
+                                    // Write data to the modal window
+                                    if (dataFromYear) {
+                                        modalSlice.append("div").html("<strong>Year: </strong>" + selectedYear);
+                                        modalSlice.append("div").html("<strong>GDP:</strong> " + dataFromYear.data.gdp);
+                                        modalSlice.append("div").html("<strong>CO2:</strong> " + dataFromYear.data.co2);
+                                    }
+
+                                    // Calculate total emissions for each energy source
+                                    var totalEmissions = getEmissionsForYear2(countryProperties.co2Data, selectedYear);
+
+                                    // Push the total emissions for the current country into the array
+                                    totalEmissionsArray.push({
+                                        countryName: countryProperties.name,
+                                        totalEmissions: totalEmissions
+                                    });
+                                } else {
+                                    modalSlice.append("div").html("<strong>No more data available");
+                                }
+                            });
+
+
+
+                            /*
+                            TAB 2
+                            */
+
+
+                            // Find the country with the highest emissions among all selected countries
+                            var maxEmissionCountry = totalEmissionsArray.reduce((max, country) => {
+                                // Sum up emissions for all sources
+                                var countryTotalEmissions = d3.sum(Object.values(country.totalEmissions).map(d => d));
+
+                                // Compare and update max if needed
+                                return (countryTotalEmissions > max.totalEmissions)
+                                    ? { countryName: country.countryName, totalEmissions: countryTotalEmissions }
+                                    : max;
+                            }, { countryName: '', totalEmissions: 0 });
+
+
+                            // Calculate the size factor for each country based on the percentage ratio
+                            var sizeFactorMap = {};
+                            selectedCountries.forEach(function (selectedCountry) {
+                                var country = selectedCountry.element;
+                                var countryProperties = JSON.parse(d3.select(country).attr("data-properties"));
+
+                                // Check if totalEmissionsArray is defined and has the current country
+                                var totalEmissionsEntry = totalEmissionsArray.find(entry => entry.countryName === countryProperties.name);
+
+                                if (totalEmissionsEntry && totalEmissionsEntry.totalEmissions) {
+                                    var countryTotalEmissions = d3.sum(Object.values(totalEmissionsEntry.totalEmissions));
+
+                                    if (countryProperties.name === maxEmissionCountry.countryName) {
+                                        // If it's the maxEmissionCountry, set the size factor to 1
+                                        sizeFactorMap[countryProperties.name] = 1;
+                                    } else {
+                                        // Calculate the percentage ratio and set the size factor accordingly
+                                        var percentageRatio = countryTotalEmissions / maxEmissionCountry.totalEmissions;
+                                        sizeFactorMap[countryProperties.name] = percentageRatio;
+                                        // To make even "green" countries emissions visible, set min. sizeRatio to 0.2. Everything below is almost invisible
+                                        if (percentageRatio <= 0.2) {
+                                            sizeFactorMap[countryProperties.name] = 0.2;
+                                        }
+                                    }
+                                }
+                            });
+
+                            // Display pie charts in tab2 with adjusted sizes based on size factors
+                            selectedCountries.forEach(function (selectedCountry) {
+                                var country = selectedCountry.element;
+                                var countryProperties = JSON.parse(d3.select(country).attr("data-properties"));
+                                var totalEmissionsEntry = totalEmissionsArray.find(entry => entry.countryName === countryProperties.name);
+                                var totalEmissions = totalEmissionsEntry ? totalEmissionsEntry.totalEmissions : null;
+                                var sizeFactor = sizeFactorMap[countryProperties.name];
+
+                                // Check if totalEmissions and sizeFactor are defined
+                                if (totalEmissions && sizeFactor !== undefined) {
+                                    // draw pieChart for all selected countries
+                                    drawPieChart("#tab2-content", totalEmissions, countryProperties.name, sizeFactor);
+                                }
+                            });
+
+
+
+
+                            /*
+                            TAB 3
+                            */
+
+
+                            // Display "Choose a datapoint" dropdown menu for each selected country in Tab 3
+                            selectedCountries.forEach(function (selectedCountry) {
+                                var country = selectedCountry.element;
+                                var properties = JSON.parse(d3.select(country).attr("data-properties"));
+                                var countryData = properties.co2Data;
+                                if (countryData) {
+                                    var datapointSelect = d3.select("#datapoint-select");
+                                    var options = Object.entries(countryData[0].data);
+                                    options.forEach(function (option) {
+                                        datapointSelect.append("option")
+                                            .text(option[0])
+                                            .attr("value", option[0]);
+                                    })
+
+                                    // Draw the bar chart for each selected country
+                                    function updateChart() {
+                                        selectedCountries.forEach(function (selectedCountry) {
+                                            var country = selectedCountry.element;
+                                            var properties = JSON.parse(d3.select(country).attr("data-properties"));
+                                            var countryData = properties.co2Data;
+                                            var selectedDatapoint = d3.select("#datapoint-select").property("value");
+
+                                            if (countryData) {
+                                                // Create a chart for the selected datapoint
+                                                var chartData = countryData.map(function (entry) {
+                                                    return {
+                                                        year: entry.year,
+                                                        value: entry.data[selectedDatapoint]
+                                                    };
+                                                }).filter(function (entry) {
+                                                    return entry.value !== undefined && entry.value !== null && entry.value !== 0;
+                                                })
+
+                                                // Chart dimensions
+                                                var chartWidth = 500;
+                                                var chartHeight = 300;
+                                                var margin = { top: 40, right: 30, bottom: 50, left: 60 }; 
+
+                                                // Remove previous chart
+                                                if (!comparing) {
+                                                    d3.select("#chart").selectAll("*").remove();
+                                                } else {
+                                                    charts.forEach(function (chart_) {
+                                                        chart_.remove();
+                                                    });
+
+                                                }
+
+                                                // Create scales
+                                                var xScale = d3.scaleBand()
+                                                    .domain(chartData.map(d => d.year))
+                                                    .range([margin.left, chartWidth - margin.right])
+                                                    .padding(0.1);
+
+                                                var yScale = d3.scaleLinear()
+                                                    .domain([0, d3.max(chartData, d => d.value)])
+                                                    .range([chartHeight - margin.bottom, margin.top]);
+
+                                                // Get color and unit for the selected datapoint
+                                                var colorAndUnit = getColorAndUnitForDatapoint(selectedDatapoint);
+
+                                                // Create chart
+                                                var chart = d3.select("#chart").append("svg")
+                                                    .attr("width", chartWidth)
+                                                    .attr("height", chartHeight);
+
+                                                // Create bars only if there is a non-zero value for that year
+                                                chart.selectAll(".bar")
+                                                    .data(chartData)
+                                                    .enter().append("rect")
+                                                    .attr("class", "bar")
+                                                    .attr("x", d => xScale(d.year))
+                                                    .attr("y", d => yScale(d.value))
+                                                    .attr("width", xScale.bandwidth())
+                                                    .attr("height", d => chartHeight - margin.bottom - yScale(d.value))
+                                                    .attr("fill", colorAndUnit.color);
+
+                                                // Add x-axis with rotated labels for every 10th bar
+                                                chart.append("g")
+                                                    .attr("transform", "translate(0," + (chartHeight - margin.bottom) + ")")
+                                                    .call(d3.axisBottom(xScale)
+                                                        .tickValues(xScale.domain().filter(function (d, i) {
+                                                            return i % 10 === 0;
+                                                        }))
+                                                    )
+                                                    .selectAll("text")
+                                                    .style("text-anchor", "end")
+                                                    .attr("dx", "-.8em")
+                                                    .attr("dy", ".15em")
+                                                    .attr("transform", "rotate(-45)");
+
+                                                // Add y-axis
+                                                chart.append("g")
+                                                    .attr("transform", "translate(" + margin.left + ",0)")
+                                                    .call(d3.axisLeft(yScale));
+
+                                                // Add axis labels
+                                                chart.append("text")
+                                                    .attr("text-anchor", "end")
+                                                    .attr("x", chartWidth / 2)
+                                                    .attr("y", chartHeight - 5)
+                                                    .text("year");
+
+                                                // Display unit above the y-axis
+                                                chart.append("text")
+                                                    .attr("text-anchor", "middle")
+                                                    .attr("transform", "rotate(-90)")
+                                                    .attr("x", -chartHeight / 2)
+                                                    .attr("y", margin.left / 4) // Adjusted position
+                                                    .text(colorAndUnit.unit);
+                                            }
+                                        })
+
+                                        charts.push(d3.select("#chart").selectAll("*"));
+                                    }
+
+                                    function getColorAndUnitForDatapoint(datapoint) {
+                                        // Define colors and units for each datapoint
+                                        switch (datapoint) {
+                                            case 'population':
+                                                return { color: '#69b3a2', unit: 'population' };
+                                            case 'gdp':
+                                                return { color: '#ff7f0e', unit: 'USD' };
+                                            case 'cement_co2':
+                                                return { color: '#2ca02c', unit: 'million tons' };
+                                            case 'cement_co2_per_capita':
+                                                return { color: '#9467bd', unit: 'tons / person' };
+                                            case 'co2':
+                                                return { color: '#8c564b', unit: 'million tons' };
+                                            case 'co2_growth_abs':
+                                                return { color: '#e377c2', unit: 'million tons' };
+                                            case 'co2_growth_prct':
+                                                return { color: '#7f7f7f', unit: '%' };
+                                            case 'co2_per_capita':
+                                                return { color: '#bcbd22', unit: 'tons / person' };
+                                            case 'co2_per_gdp':
+                                                return { color: '#17becf', unit: 'kg / USD' };
+                                            case 'co2_per_unit_energy':
+                                                return { color: '#d62728', unit: 'kg / kWh' };
+                                            case 'coal_co2':
+                                                return { color: '#9467bd', unit: 'million tons' };
+                                            case 'coal_co2_per_capita':
+                                                return { color: '#e377c2', unit: 'tons / person' };
+                                            case 'consumption_co2':
+                                                return { color: '#7f7f7f', unit: 'million tons' };
+                                            case 'consumption_co2_per_capita':
+                                                return { color: '#bcbd22', unit: 'tons / person' };
+                                            case 'consumption_co2_per_gdp':
+                                                return { color: '#17becf', unit: 'kg / USD' };
+                                            case 'cumulative_cement_co2':
+                                                return { color: '#d62728', unit: 'million tons' };
+                                            case 'cumulative_co2':
+                                                return { color: '#9467bd', unit: 'million tons' };
+                                            case 'cumulative_coal_co2':
+                                                return { color: '#e377c2', unit: 'million tons' };
+                                            case 'cumulative_flaring_co2':
+                                                return { color: '#7f7f7f', unit: 'million tons' };
+                                            case 'cumulative_gas_co2':
+                                                return { color: '#bcbd22', unit: 'million tons' };
+                                            case 'cumulative_oil_co2':
+                                                return { color: '#17becf', unit: 'million tons' };
+                                            case 'cumulative_other_co2':
+                                                return { color: '#d62728', unit: 'million tons' };
+                                            case 'energy_per_capita':
+                                                return { color: '#9467bd', unit: 'kWh / person' };
+                                            case 'energy_per_gdp':
+                                                return { color: '#e377c2', unit: 'kWh / USD' };
+                                            case 'flaring_co2':
+                                                return { color: '#7f7f7f', unit: 'million tons' };
+                                            case 'flaring_co2_per_capita':
+                                                return { color: '#bcbd22', unit: 'tons / person' };
+                                            case 'gas_co2':
+                                                return { color: '#17becf', unit: 'million tons' };
+                                            case 'gas_co2_per_capita':
+                                                return { color: '#d62728', unit: 'tons / person' };
+                                            case 'ghg_excluding_lucf_per_capita':
+                                                return { color: '#9467bd', unit: 'tons / person' };
+                                            case 'ghg_per_capita':
+                                                return { color: '#e377c2', unit: 'tons / person' };
+                                            case 'methane':
+                                                return { color: '#7f7f7f', unit: 'million tons' };
+                                            case 'methane_per_capita':
+                                                return { color: '#bcbd22', unit: 'tons / person' };
+                                            case 'nitrous_oxide':
+                                                return { color: '#17becf', unit: 'million tons' };
+                                            case 'nitrous_oxide_per_capita':
+                                                return { color: '#d62728', unit: 'tons / person' };
+                                            case 'oil_co2':
+                                                return { color: '#9467bd', unit: 'million tons' };
+                                            case 'oil_co2_per_capita':
+                                                return { color: '#e377c2', unit: 'tons / person' };
+                                            case 'other_co2_per_capita':
+                                                return { color: '#7f7f7f', unit: 'tons / person' };
+                                            case 'other_industry_co2':
+                                                return { color: '#bcbd22', unit: 'million tons' };
+                                            case 'primary_energy_consumption':
+                                                return { color: '#17becf', unit: 'TWh' };
+                                            case 'share_global_cement_co2':
+                                                return { color: '#d62728', unit: '% CO2' };
+                                            case 'share_global_co2':
+                                                return { color: '#9467bd', unit: '% CO2' };
+                                            case 'share_global_coal_co2':
+                                                return { color: '#e377c2', unit: '% CO2' };
+                                            case 'share_global_cumulative_cement_co2':
+                                                return { color: '#7f7f7f', unit: '% CO2' };
+                                            case 'share_global_cumulative_co2':
+                                                return { color: '#bcbd22', unit: '% CO2' };
+                                            case 'share_global_cumulative_coal_co2':
+                                                return { color: '#17becf', unit: '% CO2' };
+                                            case 'share_global_cumulative_flaring_co2':
+                                                return { color: '#d62728', unit: '% CO2' };
+                                            case 'share_global_cumulative_gas_co2':
+                                                return { color: '#9467bd', unit: '% CO2' };
+                                            case 'share_global_cumulative_oil_co2':
+                                                return { color: '#e377c2', unit: '% CO2' };
+                                            case 'share_global_cumulative_other_co2':
+                                                return { color: '#7f7f7f', unit: '% CO2' };
+                                            case 'share_global_flaring_co2':
+                                                return { color: '#bcbd22', unit: '% CO2' };
+                                            case 'share_global_gas_co2':
+                                                return { color: '#17becf', unit: '% CO2' };
+                                            case 'share_global_oil_co2':
+                                                return { color: '#d62728', unit: '% CO2' };
+                                            case 'share_global_other_co2':
+                                                return { color: '#9467bd', unit: '% CO2' };
+                                            case 'total_ghg':
+                                                return { color: '#e377c2', unit: 'million tons' };
+                                            case 'total_ghg_excluding_lucf':
+                                                return { color: '#7f7f7f', unit: 'million tons' };
+                                            case 'trade_co2':
+                                                return { color: '#bcbd22', unit: 'million tons' };
+                                            case 'trade_co2_share':
+                                                return { color: '#17becf', unit: '% CO2' };
+                                                 // Default color and unit
+                                            default:
+                                                return { color: '#69b3a2', unit: 'unit' };
+                                        }
+
+                                    }
+                                    d3.select("#datapoint-select").on("change", updateChart);
+
+
+                                } else {
+                                    // if no co2 Data is available for a country, display it in tab3
+                                    var modalSlice = d3.select("#tab3-content").append("div")
+                                        .attr("class", "modal-slice");
+                                    modalSlice.append("div").html("<strong>No more data available");
+                                }
+                            });
+
+
+
+
+
+
+
+                            // Display modal window with all 3 tabs
+                            d3.select("#modal").style("display", "flex");
+                        }
+                    });
+
+
+
+
+                    // Function to show modal
+                    function showModal(contentHtml) {
+                        // Remove any existing modal slices before showing new content
+                        modalContent.selectAll(".modal-slice").remove();
+
+                        // Create a new modal slice for each selected country
+                        var modalSlice = modalContent.append("div")
+                            .attr("class", "modal-slice")
+                            .html(contentHtml);
+
+                        // Show modal
+                        modal.style("display", "flex");
+                        // Adjust the style of modal content to display horizontally
+                        modalContent.selectAll(".modal-slice")
+                            .style("display", "inline-block")
+                            .style("margin-right", "20px"); // Add some spacing between slices if needed
+                    }
+
+                    // Function to find out total emissions
+                    function getEmissionsForYear(data, selectedYear) {
+                        var totalEmissions = 0;
+
+                        if (data) {
+                            // Find the data for the selected year
+                            var yearData = data.find(entry => entry.year === selectedYear);
+
+                            if (yearData && yearData.data) {
+                                // Sum up all CO2 emissions for the selected year
+                                totalEmissions = yearData.data.co2;
+                            }
+                        }
+                        return totalEmissions;
+                    }
+
+                    // Function to calculate total emissions for each energy source separately
+                    function getEmissionsForYear2(data, selectedYear) {
+                        var emissions = {
+                            coal: 0,
+                            gas: 0,
+                            oil: 0,
+                            cement: 0,
+                            flaring: 0
+                        };
+
+                        data.forEach(function (yearData) {
+                            if (yearData.data && yearData.year === selectedYear) {
+                                emissions.coal += yearData.data.coal_co2;
+                                emissions.gas += yearData.data.gas_co2;
+                                emissions.oil += yearData.data.oil_co2;
+                                emissions.cement += yearData.data.cement_co2;
+                                emissions.flaring += yearData.data.flaring_co2;
+                            }
+                        });
+
+                        return emissions;
+                    }
+
+
+
+                    // Function to draw Pie Chart
+                    function drawPieChart(container, data, countryName, sizeFactor) {
+                        var width = 200 * sizeFactor;
+                        var height = 200 * sizeFactor;
+                        var radius = Math.min(width, height) / 2;
+
+                        var color = d3.scaleOrdinal()
+                            .domain(Object.keys(data))
+                            .range(["#333333", "#33ccff", "#f6630d", "#5b2d90", "#ff0066"]);
+
+                        // legend for PieChart
+                        var legendWidth = 100;
+                        var legendHeight = 20;
+
+
+                        // Add a title to the pie chart
+                        /*d3.select(container)
+                            .append("div")
+                            .attr("class", "legend-title")
+                            .text(countryName);*/
+
+                       
+                        var legend = d3.select(container)
+                            .append("svg")
+                            .attr("width", legendWidth)
+                            .attr("height", Object.keys(data).length * (legendHeight + 5)) 
+                            .append("g")
+                            .attr("transform", "translate(0,0)");
+
+                        var legendItems = legend.selectAll(".legend-item")
+                            .data(Object.keys(data))
+                            .enter().append("g")
+                            .attr("class", "legend-item")
+                            .attr("transform", (d, i) => "translate(0," + i * (legendHeight + 5) + ")");
+
+                        legendItems.append("rect")
+                            .attr("width", legendHeight)
+                            .attr("height", legendHeight)
+                            .style("fill", d => color(d));
+
+                        legendItems.append("text")
+                            .attr("x", legendHeight + 5)
+                            .attr("y", legendHeight / 2)
+                            .attr("dy", "0.35em")
+                            .text(d => d);
+
+
+                        var pie = d3.pie()
+                            .value(function (d) {
+                                return (d.value !== undefined) ? d.value : 0;
+                            });
+
+                        var arc = d3.arc()
+                            .outerRadius(radius - 10)
+                            .innerRadius(0);
+
+                        var svg = d3.select(container)
+                            .append("svg")
+                            .attr("width", width)
+                            .attr("height", height)
+                            .append("g")
+                            .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
+
+                        var dataArr = Object.keys(data).map(function (key) {
+                            return { key: key, value: data[key] };
+                        });
+
+                        var tip = d3.select("body").append("div")
+                            .attr("class", "tooltip2")
+                            .style("opacity", 0)
+
+                        var arcs = svg.selectAll("arc")
+                            .data(pie(dataArr))
+                            .enter()
+                            .append("g")
+                            .attr("class", "arc")
+                            .on("mouseover", function (d) {
+                                if (d.data && d.data.value !== undefined) {
+                                    var total = d3.sum(dataArr.map(entry => entry.value));
+                                    var percent = Math.round(1000 * d.data.value / total) / 10;
+
+                                    tip.style("opacity", 1)
+                                        .html("<strong class='key'>" + d.data.key + "</strong><br/> Value: " + d.data.value + "<br/> Percent: " + percent + "%").style("left", (d3.event.pageX - 25) + "px")
+                                        .style("top", (d3.event.pageY - 75) + "px")
+                                }
+                            })
+                            .on("mouseout", function (d) {
+                                tip.style("opacity", 0)
+                            })
+                            .append("path")
+                            .attr("d", arc)
+                            .attr("fill", d => color(d.data.key));
+                    };
+
+
+
+                    // Event listener for closing the modal
+                    closeBtn.on("click", function () {
+                        comparing = false;
+                        // Remove all modal slices (clear the content)
+                        modalContent.selectAll(".modal-slice").remove();
+
+                        // Hide modal
+                        modal.style("display", "none");
+
+                        // Give back original colors to selected countries
+                        selectedCountries.forEach(function (selectedCountry) {
+                            var country = selectedCountry.element;
+                            var originalColor = selectedCountry.originalColor;
+
+                            // Set the original color back
+                            d3.select(country).attr("fill", originalColor);
+                        });
+
+                        // Clear the array of selected countries
+                        selectedCountries = [];
+                    });
+
+
+
+
+
+
+                });
+            });
+        });
+
+
+
+        // Function which gets called by "compare with" button
+        function compareData() {
+            // Close the modal
+            comparing = true;
+            closeModal('modal');
+        }
+
+        // Function which gets called by close button in modal window
+        function closeModal(modalId) {
+            var modal = d3.select("#" + modalId);
+            // Hide modal
+            modal.style("display", "none");
+        }
+
+        // Function which gets called by clicking on a tab
+        function switchTab(tabId) {
+            // Hide all tab contents
+            d3.selectAll('.tab-content').style('display', 'none');
+            // Show the selected tab content
+            d3.select(`#${tabId}-content`).style('display', 'block');
+        }
+
+        // Initialize tabs by showing the content of the selected tab
+        switchTab('tab1');
+
+        // Event listener for clicking on tabs
+        d3.selectAll('.modal-tab').on('click', function () {
+            var tabId = d3.select(this).attr('data-tab');
+            switchTab(tabId);
+        });
+    </script>
+
+</body>
+</html>
